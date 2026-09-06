@@ -178,6 +178,42 @@ hr{border:none; border-top:1px solid var(--border); margin:14px 0;}
 .color-dot{width:30px; height:30px; border-radius:50%; border:2px solid transparent; cursor:pointer;}
 .color-dot.selected{border-color:var(--text);}
 
+.day-checks{display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 14px;}
+.day-check-btn{
+  padding:7px 11px; border-radius:9px; border:1px solid var(--border);
+  background:var(--card); color:var(--text); font-size:.8rem;
+}
+.day-check-btn.selected{background:var(--teal); color:#fff; border-color:var(--teal);}
+
+/* ---------- Grid (timetable) view ---------- */
+.grid-view{padding:8px 0 12px;}
+.grid-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+.grid-table{display:table; border-collapse:separate;}
+.grid-headrow, .grid-row{display:flex;}
+.grid-daylabel{
+  position:sticky; left:0; z-index:2; width:78px; flex-shrink:0;
+  display:flex; align-items:center; padding:0 8px; font-size:.75rem;
+  background:var(--bg); color:var(--text); font-weight:600;
+  border-right:1px solid var(--border);
+}
+.grid-headrow .grid-daylabel{background:var(--bg); z-index:3;}
+.grid-headcell{
+  flex-shrink:0; font-size:.68rem; color:var(--muted); text-align:left;
+  padding:6px 0 6px 4px; border-left:1px dashed var(--border);
+}
+.grid-track{position:relative; flex-shrink:0; border-top:1px solid var(--border);}
+.grid-row{height:58px;}
+.grid-headrow{height:26px; position:sticky; top:0; z-index:1; background:var(--bg);}
+.grid-hourline{
+  position:absolute; top:0; bottom:0; border-left:1px dashed var(--border);
+}
+.grid-block{
+  position:absolute; top:4px; bottom:4px; border-radius:7px; overflow:hidden;
+  padding:3px 6px; color:#fff; font-size:.68rem; line-height:1.25; box-shadow:var(--shadow);
+}
+.grid-block b{display:block; font-size:.72rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.grid-hint{font-size:.72rem; color:var(--muted); text-align:center; margin:8px 0 0;}
+
 .sheet-actions{display:flex; gap:8px; align-items:center; margin-top:6px;}
 .btn-primary{
   flex:1; padding:13px; border-radius:12px; border:none; background:var(--ink); color:#fff;
