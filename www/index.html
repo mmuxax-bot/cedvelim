@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1b1f3b">
+<link rel="manifest" href="manifest.json">
+<title>Cədvəlim</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- App bar -->
+  <header class="appbar">
+    <button class="icon-btn" id="btnMenu" aria-label="Menyu">
+      <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <div class="appbar-title">
+      <h1 id="scheduleTitle">Cədvəlim</h1>
+      <span id="scheduleSubtitle" class="appbar-subtitle">Bu həftə</span>
+    </div>
+    <button class="icon-btn" id="btnSearch" aria-label="Axtarış">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    </button>
+    <button class="icon-btn" id="btnTheme" aria-label="Tema">
+      <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+    </button>
+  </header>
+
+  <!-- Search bar (hidden by default) -->
+  <div class="searchbar" id="searchBar" hidden>
+    <input type="text" id="searchInput" placeholder="Fənn, müəllim, otaq axtar…">
+    <button class="icon-btn" id="btnCloseSearch">✕</button>
+  </div>
+
+  <!-- View switch: weekly / daily -->
+  <div class="viewswitch">
+    <button class="chip active" data-view="week">Həftəlik</button>
+    <button class="chip" data-view="day">Günlük</button>
+  </div>
+
+  <!-- Day tabs -->
+  <nav class="daytabs" id="dayTabs"></nav>
+
+  <!-- Lesson list -->
+  <main class="lesson-list" id="lessonList"></main>
+
+  <!-- Empty state -->
+  <div class="empty-state" id="emptyState" hidden>
+    <div class="empty-illustration">📚</div>
+    <p>Bu gün üçün dərs yoxdur.</p>
+    <button class="btn-secondary" id="btnEmptyAdd">Dərs əlavə et</button>
+  </div>
+
+  <!-- FAB -->
+  <button class="fab" id="btnAdd" aria-label="Dərs əlavə et">+</button>
+
+</div>
+
+<!-- Drawer -->
+<div class="drawer-overlay" id="drawerOverlay" hidden></div>
+<aside class="drawer" id="drawer" hidden>
+  <h2>Cədvəllərim</h2>
+  <ul class="schedule-list" id="scheduleList"></ul>
+  <button class="btn-secondary full" id="btnNewSchedule">+ Yeni cədvəl</button>
+
+  <hr>
+
+  <button class="drawer-item" id="btnExportJson">📤 JSON ehtiyat nüsxə</button>
+  <button class="drawer-item" id="btnImportJson">📥 JSON bərpa et</button>
+  <button class="drawer-item" id="btnExportCsv">📊 CSV / Excel ixrac</button>
+  <input type="file" id="fileImport" accept="application/json" hidden>
+
+  <hr>
+
+  <button class="drawer-item premium-item" id="btnPremium">⭐ Premium</button>
+  <div class="drawer-footer">Cədvəlim · v1.0.0</div>
+</aside>
+
+<!-- Lesson form modal -->
+<div class="sheet-overlay" id="sheetOverlay" hidden></div>
+<div class="sheet" id="lessonSheet" hidden>
+  <div class="sheet-handle"></div>
+  <h2 id="sheetTitle">Yeni dərs</h2>
+  <form id="lessonForm">
+    <label>Fənn
+      <input type="text" id="fSubject" required maxlength="60" placeholder="Məs: Riyaziyyat">
+    </label>
+
+    <div class="row">
+      <label>Gün
+        <select id="fDay"></select>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>Başlanğıc
+        <input type="time" id="fStart" required>
+      </label>
+      <label>Bitmə
+        <input type="time" id="fEnd" required>
+      </label>
+    </div>
+
+    <div class="row">
+      <label>Müəllim
+        <input type="text" id="fTeacher" maxlength="60" placeholder="İxtiyari">
+      </label>
+      <label>Otaq
+        <input type="text" id="fRoom" maxlength="30" placeholder="İxtiyari">
+      </label>
+    </div>
+
+    <label>Qeydlər
+      <textarea id="fNotes" rows="2" maxlength="300" placeholder="İxtiyari"></textarea>
+    </label>
+
+    <label>Rəng
+      <div class="color-picker" id="colorPicker"></div>
+    </label>
+
+    <label class="switch-row">
+      <span>🔔 Xatırlatma (15 dəq əvvəl)</span>
+      <input type="checkbox" id="fReminder">
+    </label>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn-danger" id="btnDelete" hidden>Sil</button>
+      <button type="button" class="btn-text" id="btnCancel">Ləğv et</button>
+      <button type="submit" class="btn-primary">Yadda saxla</button>
+    </div>
+  </form>
+</div>
+
+<!-- Premium sheet -->
+<div class="sheet" id="premiumSheet" hidden>
+  <div class="sheet-handle"></div>
+  <h2>⭐ Cədvəlim Premium</h2>
+  <ul class="premium-features">
+    <li>Sonsuz sayda cədvəl</li>
+    <li>Reklamsız təcrübə</li>
+    <li>Excel/CSV ixrac limitsiz</li>
+    <li>Bulud ehtiyat nüsxə (tezliklə)</li>
+  </ul>
+  <div id="premiumStatus" class="premium-status"></div>
+  <button class="btn-primary full" id="btnBuyPremium">İllik Premium al</button>
+  <button class="btn-text full" id="btnRestorePremium">Alışı bərpa et</button>
+  <button class="btn-text full" id="btnClosePremium">Bağla</button>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/store.js"></script>
+<script src="js/billing.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "Cədvəlim",
+  "short_name": "Cədvəlim",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#faf8f4",
+  "theme_color": "#1b1f3b",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
