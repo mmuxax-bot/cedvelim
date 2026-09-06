@@ -35,10 +35,11 @@
     <button class="icon-btn" id="btnCloseSearch">✕</button>
   </div>
 
-  <!-- View switch: weekly / daily -->
+  <!-- View switch: weekly / daily / grid -->
   <div class="viewswitch">
     <button class="chip active" data-view="week">Həftəlik</button>
     <button class="chip" data-view="day">Günlük</button>
+    <button class="chip" data-view="grid">Cədvəl (bütöv)</button>
   </div>
 
   <!-- Day tabs -->
@@ -46,6 +47,12 @@
 
   <!-- Lesson list -->
   <main class="lesson-list" id="lessonList"></main>
+
+  <!-- Grid (timetable) view -->
+  <div class="grid-view" id="gridView" hidden>
+    <div class="grid-scroll" id="gridScroll"></div>
+    <p class="grid-hint">Sətri sürüşdür → saatları gör. Kvadrata bas → dərsi aç.</p>
+  </div>
 
   <!-- Empty state -->
   <div class="empty-state" id="emptyState" hidden>
@@ -89,10 +96,14 @@
       <input type="text" id="fSubject" required maxlength="60" placeholder="Məs: Riyaziyyat">
     </label>
 
-    <div class="row">
+    <div class="row" id="dayFieldSingle">
       <label>Gün
         <select id="fDay"></select>
       </label>
+    </div>
+    <div id="dayFieldMulti">
+      <label>Günlər (bir neçə seçə bilərsən — eyni dərs bir neçə günə birdən əlavə olunacaq)</label>
+      <div class="day-checks" id="dayChecks"></div>
     </div>
 
     <div class="row">
