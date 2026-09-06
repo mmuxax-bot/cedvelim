@@ -59,37 +59,75 @@ cedvel-app/
   yüklənmir)
 - Premium/Google Play Billing üçün hazır struktur (yuxarıya bax)
 
-## 🚀 Termux-da APK-ya çevirmə addımları
+## 🚀 Yalnız telefon (Termux) ilə APK yığmaq
 
-Termux-da bunları ardıcıl icra et (internet və bir neçə GB yaddaş
-lazımdır — Android SDK ağırdır):
+Telefonda Android SDK + Gradle-i birbaşa Termux-da işlətmək çox vaxt
+yaddaş/uyğunluq problemləri ilə nəticələnir (Termux-un öz kitabxana
+sistemi Android SDK-nın gözlədiyi ilə tam uyğun deyil). Ona görə **ən
+etibarlı yol — real yığma işini GitHub-un pulsuz serverlərinə
+həvalə etməkdir**: sən yalnız kodu göndərirsən, APK-nı server yığır,
+sən onu brauzerdən endirirsən. Bu ZIP-ə artıq lazımi fayl
+(`.github/workflows/android.yml`) əlavə olunub.
 
+### A yolu (tövsiyə olunur): GitHub Actions ilə serverdə yığma
+
+1. **GitHub hesabı yarat** (pulsuzdur): telefon brauzerində
+   github.com → Sign up.
+2. **Boş repo yarat**: github.com/new → ad ver (məs. `cedvelim`) →
+   "Create repository". Private/Public fərq etməz.
+3. Termux-da:
+   ```bash
+   pkg update && pkg upgrade
+   pkg install git openssh gh
+
+   # ZIP-i Termux-a köçürüb aç (məs. Yükləmələr qovluğundan)
+   cd ~/storage/downloads   # əgər `termux-setup-storage` işlətmisənsə
+   unzip cedvel-app.zip
+   cd cedvel-app
+   git init
+   git add .
+   git commit -m "İlk versiya"
+   ```
+4. **GitHub ilə qoşul** (ən asan yol — `gh` aləti ilə):
+   ```bash
+   gh auth login
+   # sual-cavabları izlə: GitHub.com → HTTPS → brauzerdə kodu təsdiqlə
+
+   gh repo create cedvelim --source=. --public --push
+   # (private istəsən --public əvəzinə --private yaz)
+   ```
+5. Brauzerdə repo səhifənə keç → **Actions** tabı → "Android APK yığ"
+   iş axını avtomatik başlayacaq (əgər başlamasa, "Run workflow"
+   düyməsinə bas). 5–10 dəqiqə gözlə.
+6. Tamamlananda həmin işin (workflow run) səhifəsində aşağıda
+   **Artifacts** bölməsində `cedvelim-debug-apk` görünəcək — üstünə
+   bas, ZIP endiriləcək, içində `app-debug.apk` var.
+7. Telefonda APK-nı aç → quraşdırmağa icazə ver (ilk dəfə "Naməlum
+   mənbələrdən quraşdırma" sualı çıxacaq, təsdiqlə) → tətbiq quraşdırılır.
+
+Kodda hər dəyişiklik etdikdən sonra sadəcə:
 ```bash
-pkg update && pkg upgrade
-pkg install nodejs-lts openjdk-17 git
-
-# ZIP-i açdığın qovluğa keç
-cd cedvel-app
-npm install
-
-# Android platformasını əlavə et
-npx cap add android
-npx cap sync android
-
-# Android SDK/Gradle Termux-da tam qurulmalıdır (bax: termux-android-sdk
-# layihələri, məs. "termux-adb", "gradle" paketi) — ya da daha rahatı:
-# `android/` qovluğunu kompüterdəki Android Studio-ya köçür və
-# oradan "Build > Build APK" et.
-
-cd android
-./gradlew assembleDebug
-# Nəticə: android/app/build/outputs/apk/debug/app-debug.apk
+git add . && git commit -m "dəyişiklik" && git push
 ```
+— hər push yeni APK yığacaq.
 
-**Tövsiyə:** Termux-da Android Gradle build-i tez-tez yaddaş/SDK
-problemləri ilə qarşılaşır. Ən sürətli və etibarlı yol — bu ZIP-i
-kompüterə (Windows/Mac/Linux) köçürüb, pulsuz **Android Studio**
-qurub, `npx cap open android` ilə açıb "Build APK" düyməsinə basmaqdır.
+### B yolu (ehtiyat variant): tam yerli Termux + Ubuntu (proot-distro)
+
+Bu yol daha ağır və yavaşdır, yalnız internetin yoxdursa və ya
+GitHub-a etibar etmək istəmirsənsə seç:
+```bash
+pkg install proot-distro
+proot-distro install ubuntu
+proot-distro login ubuntu
+# Ubuntu daxilində:
+apt update && apt install -y openjdk-17-jdk unzip wget nodejs npm
+# Android SDK command-line tools-u əl ilə endir və qur (developer.android.com/studio#command-tools)
+# sonra layihə qovluğunda: npm install && npx cap add android && npx cap sync android
+# cd android && ./gradlew assembleDebug
+```
+Bu yolda Android SDK-nı əl ilə (`sdkmanager` ilə) quraşdırmaq və
+`local.properties`-də SDK yolunu göstərmək lazımdır — addımlar uzun
+və cihazdan asılı olaraq dəyişə bilər, ona görə A yolunu tövsiyə edirəm.
 
 ## 💳 Real Google Play Premium üçün növbəti addımlar
 
