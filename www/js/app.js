@@ -44,7 +44,7 @@
   function renderScheduleTitle() {
     const sch = Store.activeSchedule();
     el("scheduleTitle").textContent = sch.name;
-    el("scheduleSubtitle").textContent = state.view === "week" ? "Bütün həftə" : DAYS[state.activeDay];
+    el("scheduleSubtitle").textContent = state.view === "day" ? DAYS[state.activeDay] : "Bütün həftə";
   }
 
   function renderDayTabs() {
@@ -95,9 +95,24 @@
   function render() {
     const list = el("lessonList");
     const empty = el("emptyState");
-    list.innerHTML = "";
+    const gridView = el("gridView");
 
     const query = el("searchInput").value.trim();
+
+    if (state.view === "grid" && !query) {
+      list.hidden = true;
+      empty.hidden = true;
+      gridView.hidden = false;
+      el("dayTabs").hidden = true;
+      renderGrid();
+      return;
+    }
+    list.hidden = false;
+    gridView.hidden = true;
+    el("dayTabs").hidden = false;
+
+    list.innerHTML = "";
+
     if (query) {
       const results = Store.search(query);
       if (!results.length) {
@@ -146,6 +161,73 @@
     }
   }
 
+  const HOUR_WIDTH = 64; // px, bir saatın eni
+
+  function renderGrid() {
+    const groups = Store.allLessonsGrouped();
+    const allLessons = groups.flatMap(g => g.lessons);
+
+    let minH = 8, maxH = 18;
+    if (allLessons.length) {
+      minH = Math.min(...allLessons.map(l => parseInt(l.start))) ;
+      maxH = Math.max(...allLessons.map(l => Math.ceil(toMinutes(l.end) / 60)));
+      minH = Math.max(0, minH - 1);
+      maxH = Math.min(24, maxH + 1);
+      if (maxH - minH < 4) maxH = Math.min(24, minH + 4);
+    }
+    const totalHours = maxH - minH;
+    const trackWidth = totalHours * HOUR_WIDTH;
+
+    let html = '<div class="grid-table">';
+
+    // Baş sətir — saatlar
+    html += '<div class="grid-headrow"><div class="grid-daylabel"></div>';
+    html += `<div class="grid-track" style="width:${trackWidth}px">`;
+    for (let h = minH; h <= maxH; h++) {
+      html += `<div class="grid-headcell" style="position:absolute; left:${(h - minH) * HOUR_WIDTH}px;">${String(h).padStart(2, "0")}:00</div>`;
+    }
+    html += '</div></div>';
+
+    groups.forEach(g => {
+      html += `<div class="grid-row"><div class="grid-daylabel">${g.name.split(" ")[0]}</div>`;
+      html += `<div class="grid-track" style="width:${trackWidth}px">`;
+      for (let h = minH; h <= maxH; h++) {
+        html += `<div class="grid-hourline" style="left:${(h - minH) * HOUR_WIDTH}px"></div>`;
+      }
+      g.lessons.forEach(l => {
+        const startMin = toMinutes(l.start) - minH * 60;
+        const endMin = toMinutes(l.end) - minH * 60;
+        const left = (startMin / 60) * HOUR_WIDTH;
+        const width = Math.max(((endMin - startMin) / 60) * HOUR_WIDTH - 3, 24);
+        html += `<div class="grid-block" data-id="${l.id}" style="left:${left}px; width:${width}px; background:${l.color || "#4f9d8d"}">
+          <b>${escapeHtml(l.subject)}</b>${l.room ? escapeHtml(l.room) : ""}
+        </div>`;
+      });
+      html += '</div></div>';
+    });
+
+    html += '</div>';
+    const scroll = el("gridScroll");
+    scroll.innerHTML = html;
+    scroll.querySelectorAll(".grid-block").forEach(b => {
+      b.addEventListener("click", () => {
+        const lesson = Store.activeSchedule().lessons.find(x => x.id === b.dataset.id);
+        if (lesson) openLessonSheet(lesson);
+      });
+    });
+  }
+
+  function toMinutes(hhmm) {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function escapeHtml(s) {
+    const d = document.createElement("div");
+    d.textContent = s || "";
+    return d.innerHTML;
+  }
+
   function dayHeading(dayIdx) {
     const h = document.createElement("div");
     h.className = "day-heading";
@@ -170,6 +252,26 @@
     });
   }
 
+  function renderDayChecks(preselected) {
+    const wrap = el("dayChecks");
+    wrap.innerHTML = "";
+    state.selectedDays = [...preselected];
+    DAYS.forEach((name, idx) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "day-check-btn" + (state.selectedDays.includes(idx) ? " selected" : "");
+      btn.textContent = name.split(" ")[0];
+      btn.dataset.day = idx;
+      btn.addEventListener("click", () => {
+        const i = state.selectedDays.indexOf(idx);
+        if (i === -1) state.selectedDays.push(idx);
+        else state.selectedDays.splice(i, 1);
+        btn.classList.toggle("selected");
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
   // ---------- Lesson sheet ----------
   function openLessonSheet(lesson) {
     const daySel = el("fDay");
@@ -179,8 +281,17 @@
     el("sheetTitle").textContent = lesson ? "Dərsi redaktə et" : "Yeni dərs";
     el("btnDelete").hidden = !lesson;
 
+    if (lesson) {
+      el("dayFieldSingle").hidden = false;
+      el("dayFieldMulti").hidden = true;
+      daySel.value = lesson.day;
+    } else {
+      el("dayFieldSingle").hidden = true;
+      el("dayFieldMulti").hidden = false;
+      renderDayChecks([state.activeDay]);
+    }
+
     el("fSubject").value = lesson ? lesson.subject : "";
-    el("fDay").value = lesson ? lesson.day : state.activeDay;
     el("fStart").value = lesson ? lesson.start : "09:00";
     el("fEnd").value = lesson ? lesson.end : "10:00";
     el("fTeacher").value = lesson ? (lesson.teacher || "") : "";
@@ -203,9 +314,8 @@
       toast("Bitmə saatı başlanğıcdan sonra olmalıdır");
       return;
     }
-    const payload = {
+    const base = {
       subject: el("fSubject").value.trim(),
-      day: Number(el("fDay").value),
       start, end,
       teacher: el("fTeacher").value.trim(),
       room: el("fRoom").value.trim(),
@@ -213,15 +323,19 @@
       color: state.selectedColor,
       reminder: el("fReminder").checked
     };
-    let saved;
+
     if (state.editingLessonId) {
-      saved = Store.updateLesson(state.editingLessonId, payload);
+      const saved = Store.updateLesson(state.editingLessonId, { ...base, day: Number(el("fDay").value) });
+      scheduleReminder(saved);
       toast("Dəyişikliklər yadda saxlanıldı");
     } else {
-      saved = Store.addLesson(payload);
-      toast("Dərs əlavə olundu");
+      const days = state.selectedDays && state.selectedDays.length ? state.selectedDays : [state.activeDay];
+      days.forEach(d => {
+        const saved = Store.addLesson({ ...base, day: d });
+        scheduleReminder(saved);
+      });
+      toast(days.length > 1 ? `Dərs ${days.length} günə əlavə olundu` : "Dərs əlavə olundu");
     }
-    scheduleReminder(saved);
     closeSheet("lessonSheet");
     render();
   }
@@ -431,7 +545,6 @@
         document.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
         chip.classList.add("active");
         state.view = chip.dataset.view;
-        el("dayTabs").style.display = state.view === "day" ? "flex" : "flex";
         renderScheduleTitle();
         render();
       });
