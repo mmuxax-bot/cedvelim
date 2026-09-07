@@ -35,34 +35,70 @@
     <button class="icon-btn" id="btnCloseSearch">✕</button>
   </div>
 
-  <!-- View switch: weekly / daily / grid -->
-  <div class="viewswitch">
-    <button class="chip active" data-view="week">Həftəlik</button>
-    <button class="chip" data-view="day">Günlük</button>
-    <button class="chip" data-view="grid">Cədvəl (bütöv)</button>
-  </div>
+  <!-- ===== TAB: Cədvəl ===== -->
+  <section class="tab-panel" id="tabSchedule">
+    <div class="viewswitch">
+      <button class="chip active" data-view="week">Həftəlik</button>
+      <button class="chip" data-view="day">Günlük</button>
+      <button class="chip" data-view="grid">Cədvəl (bütöv)</button>
+    </div>
 
-  <!-- Day tabs -->
-  <nav class="daytabs" id="dayTabs"></nav>
+    <nav class="daytabs" id="dayTabs"></nav>
 
-  <!-- Lesson list -->
-  <main class="lesson-list" id="lessonList"></main>
+    <main class="lesson-list" id="lessonList"></main>
 
-  <!-- Grid (timetable) view -->
-  <div class="grid-view" id="gridView" hidden>
-    <div class="grid-scroll" id="gridScroll"></div>
-    <p class="grid-hint">Sətri sürüşdür → saatları gör. Kvadrata bas → dərsi aç.</p>
-  </div>
+    <div class="grid-view" id="gridView" hidden>
+      <div class="grid-scroll" id="gridScroll"></div>
+      <p class="grid-hint">Sətri sürüşdür → saatları gör. Kvadrata bas → dərsi aç.</p>
+    </div>
 
-  <!-- Empty state -->
-  <div class="empty-state" id="emptyState" hidden>
-    <div class="empty-illustration">📚</div>
-    <p>Bu gün üçün dərs yoxdur.</p>
-    <button class="btn-secondary" id="btnEmptyAdd">Dərs əlavə et</button>
-  </div>
+    <div class="empty-state" id="emptyState" hidden>
+      <div class="empty-illustration">📚</div>
+      <p>Bu gün üçün dərs yoxdur.</p>
+      <button class="btn-secondary" id="btnEmptyAdd">Dərs əlavə et</button>
+    </div>
+  </section>
+
+  <!-- ===== TAB: Tapşırıqlar / imtahanlar ===== -->
+  <section class="tab-panel" id="tabTasks" hidden>
+    <div class="viewswitch">
+      <button class="chip active" data-taskfilter="all">Hamısı</button>
+      <button class="chip" data-taskfilter="tapşırıq">Tapşırıq</button>
+      <button class="chip" data-taskfilter="imtahan">İmtahan</button>
+    </div>
+    <div class="task-summary" id="taskSummary"></div>
+    <main class="task-list" id="taskList"></main>
+    <div class="empty-state" id="taskEmptyState" hidden>
+      <div class="empty-illustration">✅</div>
+      <p>Hələ tapşırıq/imtahan əlavə etməmisən.</p>
+      <button class="btn-secondary" id="btnTaskEmptyAdd">Tapşırıq əlavə et</button>
+    </div>
+  </section>
+
+  <!-- ===== TAB: Statistika ===== -->
+  <section class="tab-panel" id="tabStats" hidden>
+    <div class="stat-cards" id="statCards"></div>
+    <h2 class="stats-heading">Fənlər üzrə saat bölgüsü</h2>
+    <div class="subject-bars" id="subjectBars"></div>
+    <h2 class="stats-heading">Günlər üzrə yüklənmə</h2>
+    <div class="day-bars" id="dayBars"></div>
+  </section>
 
   <!-- FAB -->
-  <button class="fab" id="btnAdd" aria-label="Dərs əlavə et">+</button>
+  <button class="fab" id="btnAdd" aria-label="Əlavə et">+</button>
+
+  <!-- Bottom navigation -->
+  <nav class="bottomnav">
+    <button class="bn-item active" data-tab="schedule">
+      <span class="bn-icon">📅</span><span>Cədvəl</span>
+    </button>
+    <button class="bn-item" data-tab="tasks">
+      <span class="bn-icon">✅</span><span>Tapşırıqlar</span>
+    </button>
+    <button class="bn-item" data-tab="stats">
+      <span class="bn-icon">📊</span><span>Statistika</span>
+    </button>
+  </nav>
 
 </div>
 
@@ -145,18 +181,58 @@
   </form>
 </div>
 
+<!-- Task (tapşırıq/imtahan) form modal -->
+<div class="sheet" id="taskSheet" hidden>
+  <div class="sheet-handle"></div>
+  <h2 id="taskSheetTitle">Yeni tapşırıq</h2>
+  <form id="taskForm">
+    <label class="switch-row" style="margin-bottom:14px;">
+      <span>Növ</span>
+      <span class="segmented" id="taskTypeSeg">
+        <button type="button" class="seg-btn selected" data-type="tapşırıq">📝 Tapşırıq</button>
+        <button type="button" class="seg-btn" data-type="imtahan">🎯 İmtahan</button>
+      </span>
+    </label>
+
+    <label>Başlıq
+      <input type="text" id="tTitle" required maxlength="80" placeholder="Məs: Fəsil 3 üzrə test">
+    </label>
+
+    <div class="row">
+      <label>Fənn
+        <input type="text" id="tSubject" maxlength="60" placeholder="İxtiyari">
+      </label>
+      <label>Son tarix
+        <input type="date" id="tDueDate" required>
+      </label>
+    </div>
+
+    <label>Qeydlər
+      <textarea id="tNotes" rows="2" maxlength="300" placeholder="İxtiyari"></textarea>
+    </label>
+
+    <div class="sheet-actions">
+      <button type="button" class="btn-danger" id="btnTaskDelete" hidden>Sil</button>
+      <button type="button" class="btn-text" id="btnTaskCancel">Ləğv et</button>
+      <button type="submit" class="btn-primary">Yadda saxla</button>
+    </div>
+  </form>
+</div>
+
 <!-- Premium sheet -->
 <div class="sheet" id="premiumSheet" hidden>
   <div class="sheet-handle"></div>
-  <h2>⭐ Cədvəlim Premium</h2>
+  <div class="premium-badge">👑</div>
+  <h2 class="premium-heading">Cədvəlim Premium</h2>
+  <p class="premium-tagline">Daha çox planla. Daha az unut.</p>
   <ul class="premium-features">
-    <li>Sonsuz sayda cədvəl</li>
-    <li>Reklamsız təcrübə</li>
-    <li>Excel/CSV ixrac limitsiz</li>
-    <li>Bulud ehtiyat nüsxə (tezliklə)</li>
+    <li><span class="pf-check">✓</span>Sonsuz sayda cədvəl</li>
+    <li><span class="pf-check">✓</span>Reklamsız təcrübə</li>
+    <li><span class="pf-check">✓</span>Excel/CSV ixrac limitsiz</li>
+    <li><span class="pf-check">✓</span>Bulud ehtiyat nüsxə (tezliklə)</li>
   </ul>
   <div id="premiumStatus" class="premium-status"></div>
-  <button class="btn-primary full" id="btnBuyPremium">İllik Premium al</button>
+  <button class="btn-premium-cta full" id="btnBuyPremium">İllik Premium al</button>
   <button class="btn-text full" id="btnRestorePremium">Alışı bərpa et</button>
   <button class="btn-text full" id="btnClosePremium">Bağla</button>
 </div>
