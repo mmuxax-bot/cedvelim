@@ -35,8 +35,31 @@
     <button class="icon-btn" id="btnCloseSearch">✕</button>
   </div>
 
+  <!-- ===== TAB: Ana səhifə ===== -->
+  <section class="tab-panel" id="tabHome">
+    <div class="home-greeting">
+      <div>
+        <h2 id="homeGreeting">Salam! 👋</h2>
+        <p id="homeDate" class="muted-hint"></p>
+      </div>
+    </div>
+
+    <div id="homeNextCard"></div>
+
+    <div class="home-progress" id="homeProgress"></div>
+
+    <nav class="daytabs" id="homeDayTabs"></nav>
+
+    <h2 class="stats-heading" style="padding-top:6px;">Bugünkü dərslər</h2>
+    <main class="lesson-list" id="homeTodayList"></main>
+    <div class="empty-state" id="homeEmptyState" hidden>
+      <div class="empty-illustration">📚</div>
+      <p>Bu gün üçün dərs yoxdur.</p>
+    </div>
+  </section>
+
   <!-- ===== TAB: Cədvəl ===== -->
-  <section class="tab-panel" id="tabSchedule">
+  <section class="tab-panel" id="tabSchedule" hidden>
     <div class="viewswitch">
       <button class="chip active" data-view="week">Həftəlik</button>
       <button class="chip" data-view="day">Günlük</button>
@@ -48,6 +71,9 @@
     <main class="lesson-list" id="lessonList"></main>
 
     <div class="grid-view" id="gridView" hidden>
+      <div class="grid-toolbar">
+        <button type="button" class="btn-secondary" id="btnGridSettings">⚙️ Düzənlə</button>
+      </div>
       <div class="grid-scroll" id="gridScroll"></div>
       <p class="grid-hint">Sətri sürüşdür → saatları gör. Kvadrata bas → dərsi aç.</p>
     </div>
@@ -89,7 +115,10 @@
 
   <!-- Bottom navigation -->
   <nav class="bottomnav">
-    <button class="bn-item active" data-tab="schedule">
+    <button class="bn-item active" data-tab="home">
+      <span class="bn-icon">🏠</span><span>Ana səhifə</span>
+    </button>
+    <button class="bn-item" data-tab="schedule">
       <span class="bn-icon">📅</span><span>Cədvəl</span>
     </button>
     <button class="bn-item" data-tab="tasks">
@@ -179,6 +208,35 @@
       <button type="submit" class="btn-primary">Yadda saxla</button>
     </div>
   </form>
+</div>
+
+<!-- Grid (bütöv cədvəl) düzənləmə paneli -->
+<div class="sheet" id="gridSettingsSheet" hidden>
+  <div class="sheet-handle"></div>
+  <h2>⚙️ Cədvəli düzənlə</h2>
+
+  <label>Hansı günlər görünsün?</label>
+  <div class="day-checks" id="gridDayChecks"></div>
+
+  <div class="row">
+    <label>Başlanğıc saatı
+      <select id="gStartHour"></select>
+    </label>
+    <label>Bitiş saatı
+      <select id="gEndHour"></select>
+    </label>
+  </div>
+
+  <label>Sütun sayı (nə qədər az olsa, xanalar bir o qədər geniş olar)
+    <input type="number" id="gColumns" min="1" max="24" placeholder="Avtomatik">
+  </label>
+  <p class="muted-hint" style="padding:0 0 10px;">Məs: günə 2 dərsin varsa, 3–4 sütun kifayətdir — boş xanalarla uğraşmazsan.</p>
+
+  <div class="sheet-actions">
+    <button type="button" class="btn-text" id="btnGridAuto">Avtomatik et</button>
+    <button type="button" class="btn-text" id="btnGridCancel">Ləğv et</button>
+    <button type="button" class="btn-primary" id="btnGridSave">Yadda saxla</button>
+  </div>
 </div>
 
 <!-- Task (tapşırıq/imtahan) form modal -->
