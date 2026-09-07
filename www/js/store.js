@@ -26,13 +26,24 @@ function uid(prefix) {
   return prefix + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+function toMinutesLocal(hhmm) {
+  const [h, m] = (hhmm || "0:0").split(":").map(Number);
+  return h * 60 + m;
+}
+
 function defaultDb() {
   const schId = uid("sch");
   return {
     activeScheduleId: schId,
-    schedules: [{ id: schId, name: "Əsas cədvəl", lessons: [] }],
+    schedules: [{ id: schId, name: "Əsas cədvəl", lessons: [], tasks: [] }],
     settings: { theme: "light", premium: false }
   };
+}
+
+function migrateSchema(db) {
+  // Köhnə saxlanmış məlumatlarda "tasks" sahəsi ola bilməz — geriyə uyğunluq üçün əlavə edirik
+  db.schedules.forEach(s => { if (!Array.isArray(s.tasks)) s.tasks = []; });
+  return db;
 }
 
 const Store = {
@@ -43,6 +54,7 @@ const Store = {
       const raw = localStorage.getItem(DB_KEY);
       this.db = raw ? JSON.parse(raw) : defaultDb();
       if (!this.db.schedules || !this.db.schedules.length) this.db = defaultDb();
+      migrateSchema(this.db);
     } catch (e) {
       console.warn("Cədvəl oxunarkən xəta, yeni baza yaradılır:", e);
       this.db = defaultDb();
@@ -60,7 +72,7 @@ const Store = {
   },
 
   addSchedule(name) {
-    const s = { id: uid("sch"), name: name || "Yeni cədvəl", lessons: [] };
+    const s = { id: uid("sch"), name: name || "Yeni cədvəl", lessons: [], tasks: [] };
     this.db.schedules.push(s);
     this.db.activeScheduleId = s.id;
     this.save();
@@ -135,6 +147,94 @@ const Store = {
       .sort((a, b) => a.day - b.day || a.start.localeCompare(b.start));
   },
 
+  // ---------- Tapşırıq / imtahan izləmə ----------
+  addTask(task) {
+    const sch = this.activeSchedule();
+    task.id = uid("task");
+    task.done = false;
+    sch.tasks.push(task);
+    this.save();
+    return task;
+  },
+
+  updateTask(id, patch) {
+    const sch = this.activeSchedule();
+    const t = sch.tasks.find(x => x.id === id);
+    if (t) { Object.assign(t, patch); this.save(); }
+    return t;
+  },
+
+  deleteTask(id) {
+    const sch = this.activeSchedule();
+    sch.tasks = sch.tasks.filter(x => x.id !== id);
+    this.save();
+  },
+
+  toggleTask(id) {
+    const sch = this.activeSchedule();
+    const t = sch.tasks.find(x => x.id === id);
+    if (t) { t.done = !t.done; this.save(); }
+    return t;
+  },
+
+  tasksSorted(filterType) {
+    const today = new Date().toISOString().slice(0, 10);
+    let tasks = this.activeSchedule().tasks.slice();
+    if (filterType && filterType !== "all") tasks = tasks.filter(t => t.type === filterType);
+    tasks.sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return (a.dueDate || "").localeCompare(b.dueDate || "");
+    });
+    return tasks.map(t => ({ ...t, overdue: !t.done && t.dueDate && t.dueDate < today }));
+  },
+
+  taskStats() {
+    const tasks = this.activeSchedule().tasks;
+    const today = new Date().toISOString().slice(0, 10);
+    return {
+      total: tasks.length,
+      done: tasks.filter(t => t.done).length,
+      pending: tasks.filter(t => !t.done).length,
+      overdue: tasks.filter(t => !t.done && t.dueDate && t.dueDate < today).length
+    };
+  },
+
+  // ---------- Statistika ----------
+  scheduleStats() {
+    const lessons = this.activeSchedule().lessons;
+    const totalLessons = lessons.length;
+    let totalMinutes = 0;
+    const perSubject = {};
+    const perDayCount = new Array(7).fill(0);
+    const perDayMinutes = new Array(7).fill(0);
+
+    lessons.forEach(l => {
+      const dur = toMinutesLocal(l.end) - toMinutesLocal(l.start);
+      totalMinutes += dur;
+      perSubject[l.subject] = (perSubject[l.subject] || 0) + dur;
+      perDayCount[l.day]++;
+      perDayMinutes[l.day] += dur;
+    });
+
+    let busiestDay = null;
+    perDayMinutes.forEach((m, idx) => {
+      if (busiestDay === null || m > perDayMinutes[busiestDay]) busiestDay = idx;
+    });
+
+    const subjectBreakdown = Object.entries(perSubject)
+      .map(([subject, minutes]) => ({ subject, minutes }))
+      .sort((a, b) => b.minutes - a.minutes);
+
+    return {
+      totalLessons,
+      totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+      busiestDay: totalLessons ? busiestDay : null,
+      busiestDayCount: totalLessons ? perDayCount[busiestDay] : 0,
+      subjectBreakdown,
+      perDayCount
+    };
+  },
+
   setTheme(theme) {
     this.db.settings.theme = theme;
     this.save();
@@ -159,6 +259,7 @@ const Store = {
     if (!parsed || !Array.isArray(parsed.schedules)) {
       throw new Error("Fayl formatı düzgün deyil");
     }
+    migrateSchema(parsed);
     this.db = parsed;
     this.save();
     return this.db;

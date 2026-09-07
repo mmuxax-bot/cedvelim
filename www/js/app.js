@@ -5,13 +5,19 @@
   const FREE_SCHEDULE_LIMIT = 1; // Premium olmadan icazə verilən cədvəl sayı
 
   let state = {
-    view: "week",       // "week" | "day"
+    mainTab: "schedule",   // "schedule" | "tasks" | "stats"
+    view: "week",          // "week" | "day" | "grid"
     activeDay: new Date().getDay() === 0 ? 6 : new Date().getDay() - 1, // Bazar ertəsi=0
     editingLessonId: null,
-    selectedColor: null
+    selectedColor: null,
+    selectedDays: [],
+    taskFilter: "all",
+    editingTaskId: null,
+    selectedTaskType: "tapşırıq"
   };
 
   const el = (id) => document.getElementById(id);
+  const SUBJECT_ICON_COLORS = COLORS; // eyni palitra ikon nişanları üçün də istifadə olunur
 
   // ---------- Init ----------
   document.addEventListener("DOMContentLoaded", async () => {
@@ -74,8 +80,9 @@
   function lessonCard(l) {
     const card = document.createElement("div");
     card.className = "lesson-card";
+    const initial = (l.subject || "?").trim().charAt(0).toUpperCase();
     card.innerHTML = `
-      <div class="lesson-color" style="background:${l.color || "#4f9d8d"}"></div>
+      <div class="lesson-icon" style="background:${l.color || "#4f9d8d"}">${initial}</div>
       <div class="lesson-main">
         <div class="lesson-time">${l.start} – ${l.end}${l.reminder ? " · 🔔" : ""}</div>
         <div class="lesson-subject"></div>
@@ -236,6 +243,159 @@
     return h;
   }
 
+  // ---------- Tab switching ----------
+  function switchTab(tab) {
+    state.mainTab = tab;
+    document.querySelectorAll(".bn-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    el("tabSchedule").hidden = tab !== "schedule";
+    el("tabTasks").hidden = tab !== "tasks";
+    el("tabStats").hidden = tab !== "stats";
+    el("btnSearch").hidden = tab !== "schedule";
+    el("btnAdd").hidden = tab === "stats";
+    el("btnAdd").setAttribute("aria-label", tab === "tasks" ? "Tapşırıq əlavə et" : "Dərs əlavə et");
+    if (tab === "schedule") render();
+    else if (tab === "tasks") renderTasks();
+    else if (tab === "stats") renderStats();
+  }
+
+  // ---------- Tasks / Exams ----------
+  function taskCard(t) {
+    const card = document.createElement("div");
+    card.className = "task-card" + (t.overdue ? " overdue" : "") + (t.done ? " done" : "");
+    card.innerHTML = `
+      <button type="button" class="task-check" aria-label="Tamamlandı"></button>
+      <div class="task-main">
+        <div class="task-title"></div>
+        <div class="task-meta"></div>
+      </div>
+      <span class="type-pill ${t.type === "imtahan" ? "exam" : "assignment"}">${t.type === "imtahan" ? "🎯 İmtahan" : "📝 Tapşırıq"}</span>
+    `;
+    card.querySelector(".task-title").textContent = t.title;
+    const meta = [];
+    if (t.subject) meta.push(t.subject);
+    if (t.dueDate) meta.push((t.overdue ? "⚠️ Gecikib · " : "📅 ") + formatDate(t.dueDate));
+    card.querySelector(".task-meta").textContent = meta.join(" · ");
+    card.querySelector(".task-check").addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      Store.toggleTask(t.id);
+      renderTasks();
+    });
+    card.addEventListener("click", () => openTaskSheet(t));
+    return card;
+  }
+
+  function formatDate(iso) {
+    const [y, m, d] = iso.split("-");
+    return `${d}.${m}.${y}`;
+  }
+
+  function renderTasks() {
+    const list = el("taskList");
+    const empty = el("taskEmptyState");
+    list.innerHTML = "";
+    const tasks = Store.tasksSorted(state.taskFilter);
+    const stats = Store.taskStats();
+    el("taskSummary").innerHTML = `
+      <span>${stats.pending} aktiv</span>
+      ${stats.overdue ? `<span class="summary-danger">${stats.overdue} gecikmiş</span>` : ""}
+      <span>${stats.done} tamamlanıb</span>
+    `;
+    if (!tasks.length) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+    tasks.forEach(t => list.appendChild(taskCard(t)));
+  }
+
+  function openTaskSheet(task) {
+    state.editingTaskId = task ? task.id : null;
+    el("taskSheetTitle").textContent = task ? "Tapşırığı redaktə et" : "Yeni tapşırıq";
+    el("btnTaskDelete").hidden = !task;
+
+    el("tTitle").value = task ? task.title : "";
+    el("tSubject").value = task ? (task.subject || "") : "";
+    el("tDueDate").value = task ? (task.dueDate || "") : new Date().toISOString().slice(0, 10);
+    el("tNotes").value = task ? (task.notes || "") : "";
+
+    state.selectedTaskType = task ? task.type : "tapşırıq";
+    document.querySelectorAll("#taskTypeSeg .seg-btn").forEach(b =>
+      b.classList.toggle("selected", b.dataset.type === state.selectedTaskType));
+
+    showSheet("taskSheet");
+  }
+
+  function saveTaskForm(e) {
+    e.preventDefault();
+    const payload = {
+      type: state.selectedTaskType,
+      title: el("tTitle").value.trim(),
+      subject: el("tSubject").value.trim(),
+      dueDate: el("tDueDate").value,
+      notes: el("tNotes").value.trim()
+    };
+    if (state.editingTaskId) {
+      Store.updateTask(state.editingTaskId, payload);
+      toast("Dəyişikliklər yadda saxlanıldı");
+    } else {
+      Store.addTask(payload);
+      toast(payload.type === "imtahan" ? "İmtahan əlavə olundu" : "Tapşırıq əlavə olundu");
+    }
+    closeSheet("taskSheet");
+    renderTasks();
+  }
+
+  function deleteTask() {
+    if (!state.editingTaskId) return;
+    if (!confirm("Bu qeydi silmək istədiyinə əminsən?")) return;
+    Store.deleteTask(state.editingTaskId);
+    toast("Silindi");
+    closeSheet("taskSheet");
+    renderTasks();
+  }
+
+  // ---------- Statistika ----------
+  function renderStats() {
+    const s = Store.scheduleStats();
+    const t = Store.taskStats();
+
+    el("statCards").innerHTML = `
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#7b6ff0">📘</div>
+        <div class="stat-number">${s.totalLessons}</div>
+        <div class="stat-label">Dərs</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#4f9d8d">⏱️</div>
+        <div class="stat-number">${s.totalHours}</div>
+        <div class="stat-label">Saat / həftə</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:#e0a458">✅</div>
+        <div class="stat-number">${t.done}</div>
+        <div class="stat-label">Tamamlanmış</div>
+      </div>
+    `;
+
+    const maxMin = Math.max(1, ...s.subjectBreakdown.map(x => x.minutes));
+    el("subjectBars").innerHTML = s.subjectBreakdown.length
+      ? s.subjectBreakdown.map((x, i) => `
+        <div class="bar-row">
+          <span class="bar-label">${escapeHtml(x.subject)}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${(x.minutes / maxMin) * 100}%; background:${COLORS[i % COLORS.length]}"></div></div>
+          <span class="bar-value">${Math.round(x.minutes / 6) / 10}s</span>
+        </div>`).join("")
+      : `<p class="muted-hint">Hələ dərs əlavə etməmisən.</p>`;
+
+    const maxCount = Math.max(1, ...s.perDayCount);
+    el("dayBars").innerHTML = DAYS.map((name, idx) => `
+      <div class="bar-row">
+        <span class="bar-label">${name.split(" ")[0]}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${(s.perDayCount[idx] / maxCount) * 100}%; background:var(--teal)"></div></div>
+        <span class="bar-value">${s.perDayCount[idx]}</span>
+      </div>`).join("");
+  }
+
   function renderColorPicker() {
     const wrap = el("colorPicker");
     wrap.innerHTML = "";
@@ -374,24 +534,44 @@
     return h % 2147483647;
   }
 
-  // ---------- Sheets / drawer helpers ----------
+  // ---------- Sheets / drawer helpers (animated) ----------
+  const TRANSITION_MS = 220;
+
   function showSheet(id) {
-    el(id === "lessonSheet" ? "sheetOverlay" : "sheetOverlay").hidden = false;
-    el(id).hidden = false;
+    const overlay = el("sheetOverlay");
+    const sheet = el(id);
+    overlay.hidden = false;
+    sheet.hidden = false;
+    requestAnimationFrame(() => {
+      overlay.classList.add("visible");
+      sheet.classList.add("open");
+    });
   }
   function closeSheet(id) {
-    el("sheetOverlay").hidden = true;
-    el(id).hidden = true;
+    const overlay = el("sheetOverlay");
+    const sheet = el(id);
+    sheet.classList.remove("open");
+    overlay.classList.remove("visible");
+    setTimeout(() => { sheet.hidden = true; overlay.hidden = true; }, TRANSITION_MS);
   }
 
   function openDrawer() {
     renderScheduleList();
-    el("drawerOverlay").hidden = false;
-    el("drawer").hidden = false;
+    const overlay = el("drawerOverlay");
+    const drawer = el("drawer");
+    overlay.hidden = false;
+    drawer.hidden = false;
+    requestAnimationFrame(() => {
+      overlay.classList.add("visible");
+      drawer.classList.add("open");
+    });
   }
   function closeDrawer() {
-    el("drawerOverlay").hidden = true;
-    el("drawer").hidden = true;
+    const overlay = el("drawerOverlay");
+    const drawer = el("drawer");
+    drawer.classList.remove("open");
+    overlay.classList.remove("visible");
+    setTimeout(() => { drawer.hidden = true; overlay.hidden = true; }, TRANSITION_MS);
   }
 
   function renderScheduleList() {
@@ -540,9 +720,10 @@
     });
     el("searchInput").addEventListener("input", render);
 
-    document.querySelectorAll(".chip").forEach(chip => {
+    // Cədvəl görünüş çipləri (Həftəlik/Günlük/Cədvəl)
+    document.querySelectorAll("#tabSchedule .viewswitch .chip").forEach(chip => {
       chip.addEventListener("click", () => {
-        document.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+        document.querySelectorAll("#tabSchedule .viewswitch .chip").forEach(c => c.classList.remove("active"));
         chip.classList.add("active");
         state.view = chip.dataset.view;
         renderScheduleTitle();
@@ -550,13 +731,45 @@
       });
     });
 
-    el("btnAdd").addEventListener("click", () => openLessonSheet(null));
+    // Tapşırıq filtri çipləri
+    document.querySelectorAll("#tabTasks .viewswitch .chip").forEach(chip => {
+      chip.addEventListener("click", () => {
+        document.querySelectorAll("#tabTasks .viewswitch .chip").forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
+        state.taskFilter = chip.dataset.taskfilter;
+        renderTasks();
+      });
+    });
+
+    // Alt naviqasiya (Cədvəl / Tapşırıqlar / Statistika)
+    document.querySelectorAll(".bn-item").forEach(btn => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+
+    el("btnAdd").addEventListener("click", () => {
+      if (state.mainTab === "tasks") openTaskSheet(null);
+      else openLessonSheet(null);
+    });
     el("btnEmptyAdd").addEventListener("click", () => openLessonSheet(null));
+    el("btnTaskEmptyAdd").addEventListener("click", () => openTaskSheet(null));
+
     el("lessonForm").addEventListener("submit", saveLessonForm);
     el("btnCancel").addEventListener("click", () => closeSheet("lessonSheet"));
     el("btnDelete").addEventListener("click", deleteLesson);
+
+    el("taskForm").addEventListener("submit", saveTaskForm);
+    el("btnTaskCancel").addEventListener("click", () => closeSheet("taskSheet"));
+    el("btnTaskDelete").addEventListener("click", deleteTask);
+    document.querySelectorAll("#taskTypeSeg .seg-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.selectedTaskType = btn.dataset.type;
+        document.querySelectorAll("#taskTypeSeg .seg-btn").forEach(b => b.classList.toggle("selected", b === btn));
+      });
+    });
+
     el("sheetOverlay").addEventListener("click", () => {
       closeSheet("lessonSheet");
+      closeSheet("taskSheet");
       closeSheet("premiumSheet");
     });
 
