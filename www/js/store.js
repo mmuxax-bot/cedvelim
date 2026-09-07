@@ -31,18 +31,25 @@ function toMinutesLocal(hhmm) {
   return h * 60 + m;
 }
 
+function defaultGridSettings() {
+  return { days: [0, 1, 2, 3, 4, 5, 6], startHour: null, endHour: null, columns: null }; // null = avtomatik
+}
+
 function defaultDb() {
   const schId = uid("sch");
   return {
     activeScheduleId: schId,
-    schedules: [{ id: schId, name: "Əsas cədvəl", lessons: [], tasks: [] }],
+    schedules: [{ id: schId, name: "Əsas cədvəl", lessons: [], tasks: [], gridSettings: defaultGridSettings() }],
     settings: { theme: "light", premium: false }
   };
 }
 
 function migrateSchema(db) {
-  // Köhnə saxlanmış məlumatlarda "tasks" sahəsi ola bilməz — geriyə uyğunluq üçün əlavə edirik
-  db.schedules.forEach(s => { if (!Array.isArray(s.tasks)) s.tasks = []; });
+  // Köhnə saxlanmış məlumatlarda "tasks"/"gridSettings" sahəsi ola bilməz — geriyə uyğunluq üçün əlavə edirik
+  db.schedules.forEach(s => {
+    if (!Array.isArray(s.tasks)) s.tasks = [];
+    if (!s.gridSettings) s.gridSettings = defaultGridSettings();
+  });
   return db;
 }
 
@@ -72,7 +79,7 @@ const Store = {
   },
 
   addSchedule(name) {
-    const s = { id: uid("sch"), name: name || "Yeni cədvəl", lessons: [], tasks: [] };
+    const s = { id: uid("sch"), name: name || "Yeni cədvəl", lessons: [], tasks: [], gridSettings: defaultGridSettings() };
     this.db.schedules.push(s);
     this.db.activeScheduleId = s.id;
     this.save();
@@ -97,6 +104,13 @@ const Store = {
   setActiveSchedule(id) {
     this.db.activeScheduleId = id;
     this.save();
+  },
+
+  setGridSettings(patch) {
+    const sch = this.activeSchedule();
+    sch.gridSettings = Object.assign({}, sch.gridSettings, patch);
+    this.save();
+    return sch.gridSettings;
   },
 
   addLesson(lesson) {

@@ -5,9 +5,10 @@
   const FREE_SCHEDULE_LIMIT = 1; // Premium olmadan icazə verilən cədvəl sayı
 
   let state = {
-    mainTab: "schedule",   // "schedule" | "tasks" | "stats"
+    mainTab: "home",       // "home" | "schedule" | "tasks" | "stats"
     view: "week",          // "week" | "day" | "grid"
     activeDay: new Date().getDay() === 0 ? 6 : new Date().getDay() - 1, // Bazar ertəsi=0
+    homeDay: null,
     editingLessonId: null,
     selectedColor: null,
     selectedDays: [],
@@ -33,6 +34,7 @@
     renderScheduleTitle();
     render();
     bindEvents();
+    renderHome();
   });
 
   // ---------- Theme ----------
@@ -168,44 +170,56 @@
     }
   }
 
-  const HOUR_WIDTH = 64; // px, bir saatın eni
+  const COLUMN_PX = 84; // px, hər sütunun eni (sütun sayından asılı olmayaraq sabit)
 
   function renderGrid() {
-    const groups = Store.allLessonsGrouped();
-    const allLessons = groups.flatMap(g => g.lessons);
+    const gs = Store.activeSchedule().gridSettings || { days: [0, 1, 2, 3, 4, 5, 6], startHour: null, endHour: null, columns: null };
+    const allGroups = Store.allLessonsGrouped();
+    const groups = allGroups.filter(g => gs.days.includes(g.day));
+    const visibleLessons = groups.flatMap(g => g.lessons);
 
-    let minH = 8, maxH = 18;
-    if (allLessons.length) {
-      minH = Math.min(...allLessons.map(l => parseInt(l.start))) ;
-      maxH = Math.max(...allLessons.map(l => Math.ceil(toMinutes(l.end) / 60)));
-      minH = Math.max(0, minH - 1);
-      maxH = Math.min(24, maxH + 1);
-      if (maxH - minH < 4) maxH = Math.min(24, minH + 4);
+    let minH = gs.startHour != null ? gs.startHour : 8;
+    let maxH = gs.endHour != null ? gs.endHour : 18;
+    if (gs.startHour == null || gs.endHour == null) {
+      if (visibleLessons.length) {
+        if (gs.startHour == null) minH = Math.max(0, Math.min(...visibleLessons.map(l => parseInt(l.start))) - 1);
+        if (gs.endHour == null) maxH = Math.min(24, Math.max(...visibleLessons.map(l => Math.ceil(toMinutes(l.end) / 60))) + 1);
+      }
+      if (maxH - minH < 2) maxH = Math.min(24, minH + 2);
     }
-    const totalHours = maxH - minH;
-    const trackWidth = totalHours * HOUR_WIDTH;
+    const totalMinutes = Math.max(60, (maxH - minH) * 60);
+    const columns = gs.columns && gs.columns > 0 ? gs.columns : (maxH - minH);
+    const trackWidth = columns * COLUMN_PX;
+    const minutesPerColumn = totalMinutes / columns;
+
+    if (!groups.length) {
+      el("gridScroll").innerHTML = `<p class="muted-hint" style="padding:16px 4px;">Seçilmiş günlərdə göstəriləcək gün yoxdur — "⚙️ Düzənlə"dən gün əlavə et.</p>`;
+      return;
+    }
 
     let html = '<div class="grid-table">';
 
-    // Baş sətir — saatlar
+    // Baş sətir — sütun etiketləri (vaxt)
     html += '<div class="grid-headrow"><div class="grid-daylabel"></div>';
     html += `<div class="grid-track" style="width:${trackWidth}px">`;
-    for (let h = minH; h <= maxH; h++) {
-      html += `<div class="grid-headcell" style="position:absolute; left:${(h - minH) * HOUR_WIDTH}px;">${String(h).padStart(2, "0")}:00</div>`;
+    for (let c = 0; c <= columns; c++) {
+      const mins = minH * 60 + c * minutesPerColumn;
+      const hh = Math.floor(mins / 60), mm = Math.round(mins % 60);
+      html += `<div class="grid-headcell" style="position:absolute; left:${c * COLUMN_PX}px;">${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}</div>`;
     }
     html += '</div></div>';
 
     groups.forEach(g => {
       html += `<div class="grid-row"><div class="grid-daylabel">${g.name.split(" ")[0]}</div>`;
       html += `<div class="grid-track" style="width:${trackWidth}px">`;
-      for (let h = minH; h <= maxH; h++) {
-        html += `<div class="grid-hourline" style="left:${(h - minH) * HOUR_WIDTH}px"></div>`;
+      for (let c = 0; c <= columns; c++) {
+        html += `<div class="grid-hourline" style="left:${c * COLUMN_PX}px"></div>`;
       }
       g.lessons.forEach(l => {
         const startMin = toMinutes(l.start) - minH * 60;
         const endMin = toMinutes(l.end) - minH * 60;
-        const left = (startMin / 60) * HOUR_WIDTH;
-        const width = Math.max(((endMin - startMin) / 60) * HOUR_WIDTH - 3, 24);
+        const left = (startMin / totalMinutes) * trackWidth;
+        const width = Math.max((Math.max(endMin - startMin, 0) / totalMinutes) * trackWidth - 3, 30);
         html += `<div class="grid-block" data-id="${l.id}" style="left:${left}px; width:${width}px; background:${l.color || "#4f9d8d"}">
           <b>${escapeHtml(l.subject)}</b>${l.room ? escapeHtml(l.room) : ""}
         </div>`;
@@ -222,6 +236,71 @@
         if (lesson) openLessonSheet(lesson);
       });
     });
+  }
+
+  // ---------- Grid düzənləmə paneli ----------
+  function populateHourSelect(select, selectedVal) {
+    select.innerHTML = "";
+    for (let h = 0; h <= 24; h++) {
+      const opt = document.createElement("option");
+      opt.value = h;
+      opt.textContent = String(h).padStart(2, "0") + ":00";
+      select.appendChild(opt);
+    }
+    select.value = selectedVal != null ? selectedVal : "";
+  }
+
+  function openGridSettings() {
+    const gs = Store.activeSchedule().gridSettings || { days: [0, 1, 2, 3, 4, 5, 6], startHour: null, endHour: null, columns: null };
+    state.gridDaysDraft = [...gs.days];
+
+    const wrap = el("gridDayChecks");
+    wrap.innerHTML = "";
+    DAYS.forEach((name, idx) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "day-check-btn" + (state.gridDaysDraft.includes(idx) ? " selected" : "");
+      btn.textContent = name.split(" ")[0];
+      btn.dataset.day = idx;
+      btn.addEventListener("click", () => {
+        const i = state.gridDaysDraft.indexOf(idx);
+        if (i === -1) state.gridDaysDraft.push(idx);
+        else if (state.gridDaysDraft.length > 1) state.gridDaysDraft.splice(i, 1);
+        btn.classList.toggle("selected");
+      });
+      wrap.appendChild(btn);
+    });
+
+    populateHourSelect(el("gStartHour"), gs.startHour != null ? gs.startHour : 8);
+    populateHourSelect(el("gEndHour"), gs.endHour != null ? gs.endHour : 18);
+    el("gColumns").value = gs.columns != null ? gs.columns : "";
+
+    showSheet("gridSettingsSheet");
+  }
+
+  function saveGridSettings() {
+    const startHour = Number(el("gStartHour").value);
+    const endHour = Number(el("gEndHour").value);
+    if (endHour <= startHour) {
+      toast("Bitiş saatı başlanğıcdan sonra olmalıdır");
+      return;
+    }
+    const colsRaw = el("gColumns").value.trim();
+    const columns = colsRaw ? Math.max(1, Math.min(24, Number(colsRaw))) : null;
+    Store.setGridSettings({
+      days: state.gridDaysDraft && state.gridDaysDraft.length ? state.gridDaysDraft : [0, 1, 2, 3, 4, 5, 6],
+      startHour, endHour, columns
+    });
+    closeSheet("gridSettingsSheet");
+    toast("Cədvəl düzəni yadda saxlanıldı");
+    renderGrid();
+  }
+
+  function resetGridSettingsAuto() {
+    Store.setGridSettings({ days: [0, 1, 2, 3, 4, 5, 6], startHour: null, endHour: null, columns: null });
+    closeSheet("gridSettingsSheet");
+    toast("Avtomatik düzənə qaytarıldı");
+    renderGrid();
   }
 
   function toMinutes(hhmm) {
@@ -247,15 +326,116 @@
   function switchTab(tab) {
     state.mainTab = tab;
     document.querySelectorAll(".bn-item").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+    el("tabHome").hidden = tab !== "home";
     el("tabSchedule").hidden = tab !== "schedule";
     el("tabTasks").hidden = tab !== "tasks";
     el("tabStats").hidden = tab !== "stats";
     el("btnSearch").hidden = tab !== "schedule";
     el("btnAdd").hidden = tab === "stats";
     el("btnAdd").setAttribute("aria-label", tab === "tasks" ? "Tapşırıq əlavə et" : "Dərs əlavə et");
-    if (tab === "schedule") render();
+    if (tab === "home") renderHome();
+    else if (tab === "schedule") render();
     else if (tab === "tasks") renderTasks();
     else if (tab === "stats") renderStats();
+  }
+
+
+  // ---------- Ana səhifə (Dashboard) ----------
+  function todayIndex() {
+    const d = new Date().getDay();
+    return d === 0 ? 6 : d - 1;
+  }
+
+  function nowHHMM() {
+    const d = new Date();
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+
+  function findNextLesson() {
+    const today = todayIndex();
+    const now = nowHHMM();
+    const todays = Store.lessonsForDay(today).filter(l => l.start > now);
+    if (todays.length) return { lesson: todays[0], daysAhead: 0 };
+    for (let offset = 1; offset <= 7; offset++) {
+      const dayIdx = (today + offset) % 7;
+      const lessons = Store.lessonsForDay(dayIdx);
+      if (lessons.length) return { lesson: lessons[0], daysAhead: offset };
+    }
+    return null;
+  }
+
+  function renderHome() {
+    const today = todayIndex();
+    const d = new Date();
+    el("homeDate").textContent = d.toLocaleDateString("az-AZ", { day: "numeric", month: "long" }) + " · " + DAYS[today];
+
+    // Növbəti dərs kartı
+    const next = findNextLesson();
+    const nextWrap = el("homeNextCard");
+    if (next) {
+      const l = next.lesson;
+      let when;
+      if (next.daysAhead === 0) {
+        const diffMin = toMinutes(l.start) - toMinutes(nowHHMM());
+        when = diffMin < 60 ? `${diffMin} dəq sonra` : `${Math.floor(diffMin / 60)} saat ${diffMin % 60} dəq sonra`;
+      } else if (next.daysAhead === 1) {
+        when = "Sabah";
+      } else {
+        when = DAYS[(today + next.daysAhead) % 7];
+      }
+      nextWrap.innerHTML = `
+        <div class="home-next-card">
+          <span class="hn-countdown">${when}</span>
+          <div class="hn-tag">Növbəti dərs</div>
+          <div class="hn-subject">${escapeHtml(l.subject)}</div>
+          <div class="hn-meta">
+            <span>⏰ ${l.start} – ${l.end}</span>
+            ${l.room ? `<span>🏫 ${escapeHtml(l.room)}</span>` : ""}
+          </div>
+        </div>`;
+    } else {
+      nextWrap.innerHTML = `<div class="home-next-empty">Planlaşdırılan dərs yoxdur — "+" ilə əlavə et.</div>`;
+    }
+
+    // Bugünkü irəliləyiş (bugünə aid tapşırıqlar üzrə)
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const todaysTasks = Store.activeSchedule().tasks.filter(t => t.dueDate === todayIso);
+    const doneCount = todaysTasks.filter(t => t.done).length;
+    const progWrap = el("homeProgress");
+    if (todaysTasks.length) {
+      const pct = Math.round((doneCount / todaysTasks.length) * 100);
+      progWrap.hidden = false;
+      progWrap.innerHTML = `
+        <div class="hp-row"><span>Bugünkü tapşırıqlar</span><span>${doneCount}/${todaysTasks.length}</span></div>
+        <div class="hp-track"><div class="hp-fill" style="width:${pct}%"></div></div>`;
+    } else {
+      progWrap.hidden = true;
+      progWrap.innerHTML = "";
+    }
+
+    // Mini gün seçimi (Ana səhifədə "bugünkü dərslər" üçün)
+    if (state.homeDay == null) state.homeDay = today;
+    const tabs = el("homeDayTabs");
+    tabs.innerHTML = "";
+    DAYS.forEach((name, idx) => {
+      const btn = document.createElement("button");
+      btn.className = "daytab" + (idx === state.homeDay ? " active" : "");
+      btn.textContent = name.split(" ")[0];
+      btn.addEventListener("click", () => { state.homeDay = idx; renderHome(); });
+      tabs.appendChild(btn);
+    });
+
+    // Seçilmiş günün dərsləri
+    const list = el("homeTodayList");
+    const empty = el("homeEmptyState");
+    list.innerHTML = "";
+    const lessons = Store.lessonsForDay(state.homeDay);
+    if (!lessons.length) {
+      empty.hidden = false;
+    } else {
+      empty.hidden = true;
+      lessons.forEach(l => list.appendChild(lessonCard(l)));
+    }
   }
 
   // ---------- Tasks / Exams ----------
@@ -771,7 +951,13 @@
       closeSheet("lessonSheet");
       closeSheet("taskSheet");
       closeSheet("premiumSheet");
+      closeSheet("gridSettingsSheet");
     });
+
+    el("btnGridSettings").addEventListener("click", openGridSettings);
+    el("btnGridSave").addEventListener("click", saveGridSettings);
+    el("btnGridCancel").addEventListener("click", () => closeSheet("gridSettingsSheet"));
+    el("btnGridAuto").addEventListener("click", resetGridSettingsAuto);
 
     el("btnExportJson").addEventListener("click", exportJson);
     el("btnExportCsv").addEventListener("click", exportCsv);
